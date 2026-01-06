@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎲 Перевертыш: Путешествие Возрастов</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{
+            background:linear-gradient(45deg,#ff9a9e,#fecfef,#fecfef,#ff9a9e);
+            color:#333;
+            font-family:'Comic Sans MS',cursive;
+            min-height:100vh;
+            overflow-x:hidden;
+            animation:sparkle 20s infinite linear
+        }
+        @keyframes sparkle{
+            0%,100%{background-position:0% 50%}
+            50%{background-position:100% 50%}
+        }
+        .container{max-width:900px;margin:0 auto;padding:20px}
+        .header{
+            text-align:center;
+            background:linear-gradient(90deg,#ffd700,#ff6b35,#ffd700);
+            -webkit-background-clip:text;
+            -webkit-text-fill-color:transparent;
+            background-clip:text;
+            font-size:2.5em;
+            margin-bottom:20px;
+            text-shadow:0 0 20px rgba(255,215,0,0.8)
+        }
+        .status-bar{
+            display:flex;justify-content:space-between;align-items:center;
+            background:#fff8dc;border-radius:20px;padding:15px;margin:20px 0;
+            box-shadow:0 10px 30px rgba(0,0,0,0.2)
+        }
+        .character-card{
+            background:#fff;border-radius:15px;padding:10px;
+            text-align:center;box-shadow:0 5px 15px rgba(0,0,0,0.1);
+            transition:all 0.3s ease
+        }
+        .character-card:hover{transform:scale(1.05)}
+        .character-card.age-2{background:#ffe4b5}
+        .character-card.age-9{background:#b8e6b8}
+        .character-card.age-15{background:#a8d5e2}
+        .character-card.age-17{background:#f4b6c2}
+        .scene-text{
+            background:#fff;border-radius:20px;padding:25px;
+            font-size:1.3em;line-height:1.6;
+            margin:20px 0;box-shadow:0 15px 40px rgba(0,0,0,0.15);
+            min-height:200px;max-height:300px;overflow-y:auto
+        }
+        .typewriter{overflow:hidden;border-right:.15em solid #ffd700;white-space:nowrap}
+        .choices{display:flex;flex-direction:column;gap:15px;margin:25px 0}
+        button{
+            background:linear-gradient(45deg,#ff6b35,#f7931e);
+            color:white;border:none;border-radius:25px;
+            padding:18px 30px;font-size:1.2em;font-weight:bold;
+            cursor:pointer;transition:all 0.3s ease;
+            box-shadow:0 8px 25px rgba(255,107,53,0.4);
+            font-family:'Comic Sans MS',cursive
+        }
+        button:hover{
+            transform:translateY(-3px);
+            box-shadow:0 12px 35px rgba(255,107,53,0.6);
+            background:linear-gradient(45deg,#ff8e53,#ffb347)
+        }
+        button:disabled{background:#ccc;transform:none;cursor:not-allowed}
+        .age-effect{
+            position:fixed;top:20%;left:50%;transform:translateX(-50%);
+            font-size:3em;font-weight:bold;color:#ffd700;
+            text-shadow:0 0 30px #ffd700;pointer-events:none;
+            animation:agePop 2s ease-out forwards;z-index:1000
+        }
+        @keyframes agePop{
+            0%{opacity:0;transform:translateX(-50%) translateY(-50px) scale(0.5)}
+            50%{opacity:1;transform:translateX(-50%) translateY(0) scale(1.2)}
+            100%{opacity:0;transform:translateX(-50%) translateY(-30px) scale(1)}
+        }
+        .hidden{display:none}
+        .victory-screen,.defeat-screen{
+            position:fixed;top:0;left:0;width:100%;height:100vh;
+            background:rgba(0,0,0,0.9);color:white;text-align:center;
+            display:flex;flex-direction:column;justify-content:center;align-items:center;
+            font-size:2em;z-index:10000
+        }
+        .emoji-rain{position:fixed;width:100%;height:100vh;pointer-events:none;top:0;left:0}
+        .emoji{position:absolute;font-size:2em;animation:fall 3s linear infinite}
+        @keyframes fall{
+            0%{transform:translateY(-100vh) rotate(0deg)}
+            100%{transform:translateY(100vh) rotate(360deg)}
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="header">🎲 Перевертыш: Путешествие Возрастов</h1>
+        
+        <div class="status-bar">
+            <div id="progress">🌟 Уровень: <span id="level">1</span>/5</div>
+            <div id="magic-objects">🕐 Магические предметы: <span id="magic-count">0</span>/3</div>
+            <div id="score">⭐ Очки: <span id="score-value">0</span></div>
+        </div>
+
+        <div id="characters"></div>
+        
+        <div id="scene" class="scene-text"></div>
+        <div id="choices" class="choices"></div>
+    </div>
+
+    <div id="victory-screen" class="victory-screen hidden">
+        <h2>🎉 ПОБЕДА! 🎉</h2>
+        <p>Вы победили злодеев-соседей и вернули порядок возрастов!</p>
+        <button onclick="location.reload()">Играть снова! 🎮</button>
+    </div>
+
+    <script>
+        const gameState = {
+            level: 1,
+            score: 0,
+            magicItems: 0,
+            currentScene: 'start',
+            characters: {
+                vova: {name: 'Вова', age: 17, baseAge: 17, skills: ['игры', 'спорт']},
+                arseniy: {name: 'Арсений', age: 15, baseAge: 15, skills: ['музыка', 'танцы']},
+                bogdan: {name: 'Богдан', age: 9, baseAge: 9, skills: ['головоломки', 'приключения']},
+                mark: {name: 'Марк', age: 2, baseAge: 2, skills: ['играть', 'исследовать']}
+            }
+        };
+
+        const scenes = {
+            start: {
+                text: [
+                    "🌆 <span class='highlight'>ПАРК</span> — солнечный день!",
+                    "Четверо друзей гуляют: Вова(17), Арсений(15), Богдан(9), Марк(2).",
+                    "❓ Вдруг <span class='danger'>СТРАННЫЕ ЧАСЫ</span> в кустах начинают светиться...",
+                    "🌀 ВОЗРАСТА МЕНЯЮТСЯ! Что делать?!"
+                ],
+                choices: [
+                    {text: "👉 Подойти к часам", next: 'touchClock'},
+                    {text: "🏃 Бежать домой", next: 'runHome'},
+                    {text: "🔍 Исследовать", next: 'investigate'}
+                ]
+            },
+            touchClock: {
+                text: ["🌀 БА-БАХ! Возрасты перемешались!", "Вова стал 2 лет, Марк — 17!", "😂 Хаос и смех!"],
+                effect: () => randomizeAges(),
+                choices: [{text: "➡️ В школу", next: 'school'}]
+            },
+            school: {
+                text: [
+                    "🏫 <span class='highlight'>ШКОЛА</span> — звонок на урок!",
+                    "Вова(2 года) не может дотянуться до доски 😭",
+                    "Марк(17 лет) решает уравнение за 5 сек! 🤓"
+                ],
+                choices: [
+                    {text: "📚 Марк решает задачу", next: 'solveMath', skillReq: 'mark', ageReq: 17},
+                    {text: "🪜 Вова лезет на стул", next: 'climbChair', skillReq: 'vova', ageReq: 2},
+                    {text: "🎵 Арсений отвлекает учителя", next: 'danceDistraction'}
+                ]
+            }
+        };
+
+        // Добавляем остальные сцены динамически
+        const allScenes = ['school', 'mall', 'library', 'bossFight', 'victory'];
+        
+        function initGame() {
+            updateCharacters();
+            updateStatus();
+            showScene('start');
+        }
+
+        function showScene(sceneId) {
+            const scene = scenes[sceneId] || generateRandomScene();
+            gameState.currentScene = sceneId;
+            
+            const sceneEl = document.getElementById('scene');
+            sceneEl.innerHTML = '';
+            sceneEl.classList.add('typewriter');
+            
+            typeWriter(scene.text.join('<br>'), sceneEl, () => {
+                sceneEl.classList.remove('typewriter');
+                showChoices(scene.choices);
+                if (scene.effect) scene.effect();
+            });
+        }
+
+        function typeWriter(text, element, callback) {
+            element.innerHTML = text;
+            element.innerHTML = '';
+            let i = 0;
+            function type() {
+                if (i < text.length) {
+                    element.innerHTML += text.charAt(i);
+                    i++;
+                    setTimeout(type, 50);
+                } else {
+                    callback();
+                }
+            }
+            type();
+        }
+
+        function showChoices(choices) {
+            const choicesEl = document.getElementById('choices');
+            choicesEl.innerHTML = '';
+            
+            choices.forEach(choice => {
+                const btn = document.createElement('button');
+                btn.innerText = choice.text;
+                
+                if (choice.skillReq && choice.ageReq) {
+                    btn.disabled = !canUseChoice(choice);
+                    btn.title = btn.disabled ? 'Нужен правильный возраст!' : '';
+                }
+                
+                btn.onclick = () => handleChoice(choice);
+                choicesEl.appendChild(btn);
+            });
+        }
+
+        function canUseChoice(choice) {
+            const char = gameState.characters[choice.skillReq];
+            return char.age === choice.ageReq;
+        }
+
+        function handleChoice(choice) {
+            if (choice.next) {
+                if (choice.next === 'victory' && gameState.magicItems >= 3) {
+                    showVictory();
+                } else {
+                    gameState.level++;
+                    showScene(choice.next);
+                }
+            }
+            
+            if (choice.reward) {
+                gameState.magicItems++;
+                gameState.score += 100;
+            }
+            
+            updateStatus();
+        }
+
+        function randomizeAges() {
+            Object.values(gameState.characters).forEach(char => {
+                const ages = [2, 9, 15, 17];
+                char.age = ages[Math.floor(Math.random() * ages.length)];
+                showAgeEffect(char.name, char.age);
+            });
+        }
+
+        function showAgeEffect(name, age) {
+            const effect = document.createElement('div');
+            effect.className = 'age-effect';
+            effect.textContent = `${name}: ${age} лет!`;
+            document.body.appendChild(effect);
+            setTimeout(() => effect.remove(), 2000);
+        }
+
+        function updateCharacters() {
+            const container = document.getElementById('characters');
+            container.innerHTML = '';
+            
+            Object.values(gameState.characters).forEach(char => {
+                const card = document.createElement('div');
+                card.className = `character-card age-${char.age}`;
+                card.innerHTML = `
+                    <div style="font-size:1.5em;font-weight:bold">${char.emoji || '👦'}</div>
+                    <div>${char.name}</div>
+                    <div style="font-size:2em">${char.age} лет</div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function updateStatus() {
+            document.getElementById('level').textContent = gameState.level;
+            document.getElementById('magic-count').textContent = gameState.magicItems;
+            document.getElementById('score-value').textContent = gameState.score;
+        }
+
+        function generateRandomScene() {
+            const locations = ['mall', 'library', 'park', 'bossFight'];
+            return {
+                text: [`🌟 <span class="highlight">${locations[Math.floor(Math.random()*locations.length)]}</span> — новые приключения ждут!`],
+                choices: [{text: "➡️ Продолжить путь", next: allScenes[Math.floor(Math.random()*allScenes.length)]}]
+            };
+        }
+
+        function showVictory() {
+            document.querySelector('.container').style.display = 'none';
+            document.getElementById('victory-screen').classList.remove('hidden');
+            createEmojiRain('🎉','⭐','🏆','✨');
+        }
+
+        function createEmojiRain(...emojis) {
+            const rain = document.createElement('div');
+            rain.className = 'emoji-rain';
+            document.body.appendChild(rain);
+            
+            function dropEmoji() {
+                const emoji = document.createElement('div');
+                emoji.className = 'emoji';
+                emoji.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+                emoji.style.left = Math.random() * 100 + '%';
+                emoji.style.animationDelay = Math.random() * 2 + 's';
+                rain.appendChild(emoji);
+                
+                setTimeout(() => emoji.remove(), 3000);
+            }
+            
+            const interval = setInterval(dropEmoji, 300);
+            setTimeout(() => clearInterval(interval), 10000);
+        }
+
+        // Запуск игры
+        initGame();
+    </script>
+</body>
+</html>
