@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎲 Перевертыш: Путешествие Возрастов (РАБОТАЕТ!)</title>
+    <title>🎲 Перевертыш: Путешествие Возрастов (ИГРОК + ПРОДОЛЖЕНИЕ)</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
         body{
@@ -22,20 +22,21 @@
             -webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:3em;
             margin:20px 0;text-shadow:0 0 30px rgba(255,215,0,0.8);animation:pulse 2s infinite}
         @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
-        .status-bar{display:grid;grid-template-columns:1fr 1fr 1fr;gap:15px;background:#fff8dc;
+        .status-bar{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:15px;background:#fff8dc;
             border-radius:25px;padding:20px;margin:20px 0;box-shadow:0 15px 40px rgba(0,0,0,0.2)}
         .stat-card{background:#fff;border-radius:15px;padding:15px;text-align:center;box-shadow:0 8px 25px rgba(0,0,0,0.1);
             transition:all 0.3s}.stat-card:hover{transform:translateY(-5px)}
+        .player-card{border:4px solid #ffd700 !important;transform:scale(1.1) !important;box-shadow:0 0 30px #ffd700 !important}
         .character-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;margin:20px 0}
         .character-card{background:#fff;border-radius:20px;padding:20px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,0.15);
-            transition:all 0.4s ease}.character-card:hover{transform:scale(1.05)}
+            transition:all 0.4s ease;cursor:pointer}.character-card:hover{transform:scale(1.05)}
+        .character-card.selected{transform:scale(1.15);box-shadow:0 0 30px #ffd700 !important}
         .age-2{background:linear-gradient(135deg,#ffe4b5,#ffdab9)}
         .age-9{background:linear-gradient(135deg,#b8e6b8,#98d8a8)}
         .age-15{background:linear-gradient(135deg,#a8d5e2,#87c5d2)}
         .age-17{background:linear-gradient(135deg,#f4b6c2,#e8a2b0)}
-        .scene-text{background:#fff;border-radius:25px;padding:30px;margin:25px 0;font-size:1.4em;
-            line-height:1.8;box-shadow:0 20px 50px rgba(0,0,0,0.2);min-height:250px;max-height:400px;
-            white-space:pre-wrap}
+        .scene-text{background:#fff;border-radius:25px;padding:30px;margin:25px 0;font-size:1.4em;line-height:1.8;
+            box-shadow:0 20px 50px rgba(0,0,0,0.2);min-height:250px;max-height:400px;white-space:pre-wrap}
         .highlight{color:#ff6b35;font-weight:bold}
         .danger{color:#e74c3c;font-weight:bold}
         .success{color:#27ae60;font-weight:bold}
@@ -54,10 +55,15 @@
         .hidden{display:none!important}
         .progress-bar{width:100%;height:20px;background:#ddd;border-radius:10px;overflow:hidden;margin:20px 0}
         .progress-fill{height:100%;background:linear-gradient(90deg,#27ae60,#2ecc71);width:0%;transition:width 1s ease}
+        .effect{position:fixed;top:40%;left:50%;transform:translateX(-50%);font-size:3em;font-weight:bold;
+            text-shadow:0 0 20px currentColor;padding:20px;border-radius:20px;z-index:10000;
+            animation:popEffect 2s forwards}
+        @keyframes popEffect{0%{opacity:0;transform:translateX(-50%) scale(0.5)}
+            50%{opacity:1;transform:translateX(-50%) scale(1.2)}
+            100%{opacity:0;transform:translateX(-50%) scale(1)}}
     </style>
 </head>
 <body>
-    <!-- МУЗЫКА -->
     <div class="music-controls">
         <button class="music-btn active" onclick="toggleMusic()" title="Музыка">🎵</button>
         <button class="music-btn" onclick="toggleSfx()" title="Звуки">🔊</button>
@@ -82,16 +88,27 @@
                 <div>Очки</div>
                 <div id="score-value">0</div>
             </div>
+            <div class="stat-card player-card">
+                <div style="font-size:2em">🎮</div>
+                <div>Игрок</div>
+                <div id="player-name">-</div>
+            </div>
         </div>
 
         <div class="progress-bar">
             <div class="progress-fill" id="progress-fill"></div>
         </div>
 
-        <div class="character-grid" id="characters"></div>
-        
-        <div id="game-content">
-            <div id="scene" class="scene-text">Инициализация игры...</div>
+        <!-- ✅ ВЫБОР ИГРОКА -->
+        <div id="character-select" style="text-align:center;margin:40px 0;">
+            <h2 style="font-size:2.5em;color:#ff6b35;margin-bottom:30px">🎮 ВЫБЕРИ СВОЕГО ГЕРОЯ!</h2>
+            <div class="character-grid" id="select-characters"></div>
+            <button onclick="startGame()" style="margin-top:30px;font-size:1.5em;padding:20px 50px;" id="start-btn" disabled>🚀 НАЧАТЬ ПРИКЛЮЧЕНИЕ!</button>
+        </div>
+
+        <div id="game-content" class="hidden">
+            <div class="character-grid" id="characters"></div>
+            <div id="scene" class="scene-text">Инициализация...</div>
             <div id="choices" class="choices"></div>
         </div>
 
@@ -104,106 +121,117 @@
     </div>
 
     <script>
-        // ГЛОБАЛЬНОЕ СОСТОЯНИЕ
         const gameState = {
-            level: 1, score: 0, magicItems: 0, currentScene: 'start', playTime: 0,
-            currentPuzzle: null, musicEnabled: true, sfxEnabled: true,
+            level: 1, score: 0, magicItems: 0, playTime: 0, sfxEnabled: true,
+            selectedPlayer: null,
             characters: {
-                vova: {name: '👨‍💻 Вова', age: 17, emoji: '👨‍💻'},
-                arseniy: {name: '🎸 Арсений', age: 15, emoji: '🎸'},
-                bogdan: {name: '🔍 Богдан', age: 9, emoji: '🔍'},
-                mark: {name: '🍼 Марк', age: 2, emoji: '🍼'}
+                vova: {name: '👨‍💻 Вова', age: 17, emoji: '👨‍💻', skills: 'игры, спорт'},
+                arseniy: {name: '🎸 Арсений', age: 15, emoji: '🎸', skills: 'музыка, танцы'},
+                bogdan: {name: '🔍 Богдан', age: 9, emoji: '🔍', skills: 'головоломки'},
+                mark: {name: '🍼 Марк', age: 2, emoji: '🍼', skills: 'лазать, прятаться'}
             }
         };
 
-        // ✅ ПОЛНЫЕ СЦЕНЫ
         const scenes = {
             start: {
-                text: `🌳 ГОРСКОЙ ПАРК — яркое лето!
+                text: `🌳 ГОРСКОЙ ПАРК — ЛЕТО 2026!
 
-Вова(17)⚽ забивает голы, Арсений(15)🎧 качает музыку,
-Богдан(9)🧩 собирает "Титаник", Марк(2)🌿 жует траву!
+Ты — [ИГРОК] из команды Перевертышей!
+Вова⚽, Арсений🎧, Богдан🧩, Марк🌿 — все на месте!
 
 ❓ В кустах ТИКАЮТ ДРЕВНИЕ ЧАСЫ...
-🌀 МАГИЯ ВРЕМЕНИ АКТИВНА!
-        
-Цель: собрать 6 артефактов!
-Ошибка = Возраст угасает (-2 года!)
-Успех = Возраст растет (+3 года!)`,
+🌀 МАГИЯ ВРЕМЕНИ АКТИВИРУЕТСЯ!
+
+Цель: 6 артефактов!
+Ошибка = -2 года ТВОЕМУ герою!
+Успех = +3 года и артефакт!`,
                 choices: [
                     {text: "🕰️ АКТИВИРОВАТЬ ЧАСЫ", next: 'clockBoom'},
                     {text: "🧩 ЗАГАДКА ПАРКА", puzzle: 'logic'},
-                    {text: "🏃 БЕЖАТЬ!", next: 'runAway'}
+                    {text: "🏃 БЕЖИМ ВПЕРЕД!", next: 'school1'}
                 ]
             },
             clockBoom: {
                 text: `🌀 БУУУМ! ЧАСЫ ВЗОРВАЛИСЬ! ⚡
 
-Вова(17→2) ползает и плачет!
-Марк(2→17) кодит на смартфоне!
-Арсений↔Богдан поменялись!
+[ИГРОК] чувствует как время меняется!
+Возрасты команды перемешались!
 
-💀 ВОЗРАСТ УГА САЕТ! 
-1/6 АРТЕФАКТОВ — ШКОЛА ждет!`,
-                effect: 'randomAges',
+💀 ТВОЙ ГЕРОЙ стареет/молодеет!
+1/6 АРТЕФАКТОВ ждет в ШКОЛЕ!`,
+                effect: 'shuffleAges',
                 choices: [{text: "🏫 В ШКОЛУ!", next: 'school1'}]
             },
             school1: {
-                text: `🏫 ШКОЛА — МАТЕМАТИКА!
+                text: `🏫 ШКОЛА — УРОК МАТЕМАТИКИ!
 
-Марк(17) рисует формулы, Вова(2) на полу 😭
-Учитель: "РЕШИ УРАВНЕНИЕ ИЛИ ВСЕМ НОЛЬ!"
+Учитель: "РЕШИ ЗАДАЧУ ИЛИ ВСЕМ НОЛЬ!"
+Твой герой [ИГРОК] готовится...
 
-1/6 артефакт — МАГический Калькулятор!`,
+1/6 артефакт — МАГический Калькулятор!
+Не ошибись — возраст угасает!`,
                 choices: [{text: "🧮 МАТЕЗАДАЧА", puzzle: 'math'}]
             }
         };
 
-        // ✅ ЗАДАЧКИ
         const puzzles = {
             math: [
-                {q: "15 + 27 = ?", a: "42", hint: "Сложи числа!"},
-                {q: "8 конфет - 3 = ?", a: "5", hint: "Сколько осталось?"},
-                {q: "2 + 1.5 = ?", a: "3.5", hint: "Вова бежит!"}
+                {q: "15 бойцов + 27 танков = ?", a: "42", hint: "Сложи!"},
+                {q: "8 конфет - 3 = ?", a: "5", hint: "Осталось?"},
+                {q: "2км + 1.5км = ?", a: "3.5", hint: "Дорога!"}
             ],
             logic: [
-                {q: "1кг перьев или 1кг железа?", a: "одинаково", hint: "Оба 1 кг!"},
-                {q: "3 лампочки. Какая горит?", a: "все", hint: "Все включены!"},
-                {q: "12 пазлов × 2 = ?", a: "24", hint: "Богдан мастер!"}
+                {q: "1кг перьев vs 1кг железа?", a: "одинаково", hint: "Оба 1кг!"},
+                {q: "3 лампочки. Какая?", a: "все", hint: "Все горят!"},
+                {q: "12×2 пазла = ?", a: "24", hint: "Богдан!"}
             ]
         };
 
-        // 🎵 ЗВУКИ (вибрация)
-        function playSound(type) {
-            if (navigator.vibrate && gameState.sfxEnabled) {
-                navigator.vibrate(100);
-            }
+        // ✅ ВЫБОР ИГРОКА
+        function initCharacterSelect() {
+            const selectChars = document.getElementById('select-characters');
+            selectChars.innerHTML = '';
+            
+            Object.entries(gameState.characters).forEach(([id, char]) => {
+                const card = document.createElement('div');
+                card.className = `character-card age-${char.age}`;
+                card.innerHTML = `
+                    <div style="font-size:3em">${char.emoji}</div>
+                    <div style="font-size:1.3em;font-weight:bold">${char.name}</div>
+                    <div style="font-size:2.5em">${char.age} лет</div>
+                    <div style="font-size:1em;color:#666;margin-top:10px">${char.skills}</div>
+                `;
+                card.onclick = () => selectPlayer(id);
+                selectChars.appendChild(card);
+            });
         }
 
-        function toggleMusic() {
-            gameState.musicEnabled = !gameState.musicEnabled;
-            document.querySelector('.music-btn').classList.toggle('active', gameState.musicEnabled);
+        function selectPlayer(playerId) {
+            gameState.selectedPlayer = playerId;
+            document.querySelectorAll('#select-characters .character-card').forEach(c => c.classList.remove('selected'));
+            event.target.closest('.character-card').classList.add('selected');
+            document.getElementById('start-btn').disabled = false;
+            document.getElementById('player-name').textContent = gameState.characters[playerId].name;
         }
 
-        function toggleSfx() {
-            gameState.sfxEnabled = !gameState.sfxEnabled;
-            document.querySelectorAll('.music-btn')[1].classList.toggle('active', gameState.sfxEnabled);
-        }
-
-        // ✅ ОСНОВНОЙ ЦИКЛ
-        function initGame() {
-            console.log('🚀 ИГРА ЗАПУЩЕНА!');
-            updateUI();
+        function startGame() {
+            if (!gameState.selectedPlayer) return;
+            
+            document.getElementById('character-select').classList.add('hidden');
+            document.getElementById('game-content').classList.remove('hidden');
+            
             showScene('start');
             setInterval(updateTimer, 1000);
         }
 
+        // ✅ ОСНОВНОЙ ГЕЙМПЛЕЙ
         function showScene(sceneName) {
             const scene = scenes[sceneName] || scenes.start;
+            const sceneText = scene.text.replace(/\[ИГРОК\]/g, gameState.characters[gameState.selectedPlayer].name);
             const sceneEl = document.getElementById('scene');
             
             sceneEl.textContent = '';
-            typeWriter(scene.text, sceneEl, () => {
+            typeWriter(sceneText, sceneEl, () => {
                 showChoices(scene.choices || []);
                 if (scene.effect) window[scene.effect]();
             });
@@ -231,7 +259,6 @@
                 const btn = document.createElement('button');
                 btn.textContent = choice.text;
                 btn.onclick = () => {
-                    playSound('click');
                     if (choice.puzzle) {
                         showPuzzle(choice.puzzle);
                     } else {
@@ -257,41 +284,34 @@
             document.getElementById('puzzle-input').focus();
         }
 
+        // ✅ ОШИБКА = ПРОДОЛЖАЕМ ИГРУ!
         function checkPuzzleAnswer() {
             const answer = document.getElementById('puzzle-input').value.trim().toLowerCase();
+            const player = gameState.characters[gameState.selectedPlayer];
+            
             if (answer === gameState.currentPuzzle.a.toLowerCase()) {
-                playSound('success');
+                // ✅ УСПЕХ
                 gameState.magicItems++;
                 gameState.score += 500;
-                showEffect('✅ АРТЕФАКТ +1!', 'success');
-                setTimeout(() => backFromPuzzle(), 1500);
+                player.age = Math.min(17, player.age + 3);
+                showEffect('✅ АРТЕФАКТ +1! +3 года!', 'success');
+                setTimeout(() => backFromPuzzle('school2'), 1500);
             } else {
-                playSound('fail');
-                gameState.characters.vova.age = Math.max(2, gameState.characters.vova.age - 2);
-                showEffect('❌ Возраст -2 года!', 'danger');
+                // ❌ ОШИБКА — ПРОДОЛЖАЕМ!
+                player.age = Math.max(2, player.age - 2);
+                showEffect('❌ Ошибка! Твой герой -2 года!', 'danger');
+                setTimeout(() => backFromPuzzle('school1'), 1500);
             }
             updateUI();
         }
 
-        function backFromPuzzle() {
+        function backFromPuzzle(nextScene) {
             document.getElementById('puzzle-screen').classList.remove('active');
             document.getElementById('game-content').style.display = 'block';
-            showScene('school1');
+            showScene(nextScene || 'school1');
         }
 
-        function showEffect(text, type) {
-            const effect = document.createElement('div');
-            effect.style.cssText = `
-                position:fixed;top:40%;left:50%;transform:translateX(-50%);
-                font-size:3em;font-weight:bold;color:${type === 'success' ? '#27ae60' : '#e74c3c'};
-                text-shadow:0 0 20px currentColor;padding:20px;border-radius:20px;z-index:10000;
-                animation:popEffect 2s forwards`;
-            effect.textContent = text;
-            document.body.appendChild(effect);
-            setTimeout(() => effect.remove(), 2000);
-        }
-
-        function randomAges() {
+        function shuffleAges() {
             const ages = [2, 9, 15, 17];
             Object.values(gameState.characters).forEach(char => {
                 char.age = ages[Math.floor(Math.random() * 4)];
@@ -299,13 +319,22 @@
             updateUI();
         }
 
+        function showEffect(text, type) {
+            const effect = document.createElement('div');
+            effect.className = 'effect';
+            effect.style.color = type === 'success' ? '#27ae60' : '#e74c3c';
+            effect.textContent = text;
+            document.body.appendChild(effect);
+            setTimeout(() => effect.remove(), 2000);
+        }
+
         function updateUI() {
-            // Персонажи
+            // Обновляем персонажей
             const charsEl = document.getElementById('characters');
             charsEl.innerHTML = '';
-            Object.values(gameState.characters).forEach(char => {
+            Object.entries(gameState.characters).forEach(([id, char]) => {
                 const card = document.createElement('div');
-                card.className = `character-card age-${char.age}`;
+                card.className = `character-card age-${char.age} ${id === gameState.selectedPlayer ? 'player-card' : ''}`;
                 card.innerHTML = `
                     <div style="font-size:3em">${char.emoji}</div>
                     <div style="font-size:1.3em;font-weight:bold">${char.name}</div>
@@ -318,6 +347,7 @@
             document.getElementById('level').textContent = gameState.level;
             document.getElementById('magic-count').textContent = `${gameState.magicItems}/6`;
             document.getElementById('score-value').textContent = gameState.score;
+            document.getElementById('player-name').textContent = gameState.characters[gameState.selectedPlayer]?.name || '-';
 
             // Прогресс
             const progress = Math.min(95, (gameState.level / 25) * 100);
@@ -328,19 +358,30 @@
             gameState.playTime++;
         }
 
-        // Enter для задачек
+        // Управление
         document.addEventListener('keypress', (e) => {
             if (e.key === 'Enter' && document.getElementById('puzzle-screen').classList.contains('active')) {
                 checkPuzzleAnswer();
             }
         });
 
+        function toggleMusic() {
+            gameState.musicEnabled = !gameState.musicEnabled;
+            document.querySelector('.music-btn').classList.toggle('active', gameState.musicEnabled);
+        }
+
+        function toggleSfx() {
+            gameState.sfxEnabled = !gameState.sfxEnabled;
+            document.querySelectorAll('.music-btn')[1].classList.toggle('active', gameState.sfxEnabled);
+        }
+
         // ✅ СТАРТ
         window.onload = function() {
-            console.log('🎮 ИГРА ГОТОВА!');
-            initGame();
+            console.log('🎮 Перевертыш готов!');
+            initCharacterSelect();
+            updateUI();
         };
     </script>
-</head>
-<body>
+</body>
+</html>
 
